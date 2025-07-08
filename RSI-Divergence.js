@@ -8,14 +8,37 @@ indicator('RSI Divergence (Nikko)', overlay = false, max_lines_count = 500, calc
 max_bars_back(time,500)
 
 // === INPUT PARAMETERS ===
+smaLengthInput = input.int(14, "SMA Length", group = "Settings", display = display.data_window)
 rsilen = input.int(14, title = 'rsi length')
 rsisrc = input(close, title = 'source')
 x = ta.rsi(rsisrc, rsilen) // RSI calculation
+ssma = ta.sma(rsisrc, rsilen)
+rsiPlot = x // save x for later
+// === COLOR SETTINGS ===
+groupColor = "🎨 Visual Settings"
+heatmapTransparency = input.int( title = 'Heatmap Transparency (0-100)', defval = 10, group=groupColor)
+colorRSI              = input.color(color.rgb(255, 255, 255, 0), title="RSI Default Color", group=groupColor)
+colorSMA              = input.color(color.rgb(200, 200, 0, 50), title="SMA Default Color", group=groupColor)
+colorRSIOverbought    = input.color(color.rgb(255, 0, 100, 0), title="RSI Overbought Color", group=groupColor)
+colorRSIOversold      = input.color(color.rgb(100, 255, 0, 10), title="RSI Oversold Color", group=groupColor)
+colorLabelBullish     = input.color(color.rgb(0, 87, 3, 0), title="Bullish Label Background", group=groupColor)
+colorLabelBearish     = input.color(color.rgb(102, 0, 0, 0), title="Bearish Label Background", group=groupColor)
+colorLabelText        = input.color(color.rgb(255, 255, 255, 0), title="Label Text Color", group=groupColor)
+colorLineBullishRSI   = input.color(color.rgb(0, 255, 0, 0), title="RSI Bullish Line", group=groupColor)
+colorLineBearishRSI   = input.color(color.rgb(255, 0, 0, 0), title="RSI Bearish Line", group=groupColor)
+colorLineBullishPrice = input.color(color.rgb(255, 0, 0, 0), title="Price Bullish Line", group=groupColor)
+colorLineBearishPrice = input.color(color.rgb(0, 255, 0, 0), title="Price Bearish Line", group=groupColor)
+colorBackground = input.color(color.rgb(52, 26, 67, 20), title="Flat Background color", group=groupColor)
 
 // Display options
-displaylabels = input.bool( title = 'Display Labels', defval = true)
-len = input.int(25, title = 'RSI Divergence length', maxval = 5000)
-linewidth = input.int( title = 'Display Line Width', defval = 2)
+displaylabels = input.bool( title = 'Display Labels', defval = true, group="Settings")
+enableSMA = input.bool( title = 'Enable SMA', defval = true, group="Settings")
+hideHeatmap = input.bool(title = 'Hide Heatmap', defval= false, group="Settings")
+len = input.int(25, title = 'RSI Divergence length', maxval = 5000,minval = 1, group="Settings")
+divergencelinewidth = input.int( title = 'Divergeance Display Line Width', defval = 2, maxval=10, minval=1, group="Settings")
+rsilinewidth = input.int( title = 'RSI Display Line Width', defval = 1, maxval=10, minval=1, group="Settings")
+smalinewidth = input.int( title = 'SMA Display Line Width', defval = 2, maxval=10, minval=1, group="Settings")
+
 src = close
 extrapolation = 0
 
@@ -75,16 +98,20 @@ cr := cr and  array.get(priceFitArray, 0) - array.get(priceFitArray, 24) < -mo a
 cg := cg and array.get(priceFitArray, 0) - array.get(priceFitArray, 24) > mo and array.get(rsiFitArray, 0) - array.get(rsiFitArray, 24) < -5
 
 // === RSI PLOT ===
-plotcolor=color.rgb(200, 200, 200,10)
-if (x>=80)
-    plotcolor:=color.rgb(255, 000, 100,0)
+plotcolor=colorRSI
+if (x>=70)
+    plotcolor:=colorRSIOverbought
 if (x<=30)
-    plotcolor:=color.rgb(100, 255, 0,10)
+    plotcolor:=colorRSIOversold
 
-if x<80 and x>30
-    plotcolor:=color.rgb(200, 200, 200,10)
+if x<70 and x>30
+    plotcolor:=colorRSI
 
-plot(x, color = plotcolor)    
+plot(x, color = plotcolor, linewidth=rsilinewidth)    
+
+// Plot SMA
+smoothingSMA = enableSMA ? ta.sma(x, smaLengthInput) : na
+plot(smoothingSMA, "RSI-based MA", color= colorSMA, display = enableSMA ? display.all : display.none, editable = enableSMA, linewidth=smalinewidth)
 
 
 // === SECOND REGRESSION LINES FOR PLOTTING ===
@@ -134,16 +161,16 @@ for i = 0 to len-1
 
 // === DRAW SIGNALS AND ALERTS ===
 if cg
-    line.new(ta.valuewhen(cg, bar_index, 0) - len +1, ta.valuewhen(cg, array.get(dizi3, 0), 0), ta.valuewhen(cg, bar_index, 0), ta.valuewhen(cg, array.get(dizi3, len - 1), 0), color = color.rgb(0, 255, 0), width = linewidth)
+    line.new(ta.valuewhen(cg, bar_index, 0) - len +1, ta.valuewhen(cg, array.get(dizi3, 0), 0), ta.valuewhen(cg, bar_index, 0), ta.valuewhen(cg, array.get(dizi3, len - 1), 0), color = colorLineBullishRSI, width = divergencelinewidth)
     alert("Positive \nDivergence", alert.freq_once_per_bar_close)
     if displaylabels
-        label.new(bar_index,close, "Bullish", xloc.bar_index, yloc.belowbar, color.rgb(0, 87, 3), label.style_label_up, color.rgb(255, 255, 255), size.normal, text.align_center, na, font.family_default, true)    
+        label.new(bar_index,close, "Bullish", xloc.bar_index, yloc.belowbar, colorLabelBullish, label.style_label_up, colorLabelText, size.normal, text.align_center, na, font.family_default, true)    
 
 if cr 
-    line.new(ta.valuewhen(cr, bar_index, 0) - len +1, ta.valuewhen(cr, array.get(dizi4, 0), 0), ta.valuewhen(cr, bar_index, 0), ta.valuewhen(cr, array.get(dizi4, len - 1), 0), color = color.rgb(255, 0, 0, 0), width = linewidth)
+    line.new(ta.valuewhen(cr, bar_index, 0) - len +1, ta.valuewhen(cr, array.get(dizi4, 0), 0), ta.valuewhen(cr, bar_index, 0), ta.valuewhen(cr, array.get(dizi4, len - 1), 0), color = colorLineBearishRSI, width = divergencelinewidth)
     alert("Negative \nDivergence", alert.freq_once_per_bar_close)    
     if displaylabels 
-        label.new(bar_index,close, "Bearish", xloc.bar_index, yloc.abovebar, color.rgb(102, 0, 0), label.style_label_down, color.white, size.normal, text.align_center, na, font.family_default, true)
+        label.new(bar_index,close, "Bearish", xloc.bar_index, yloc.abovebar, colorLabelBearish, label.style_label_down, colorLabelText, size.normal, text.align_center, na, font.family_default, true)
 
 // === ALERT CONDITIONS ===
 alertcondition(cg, title = 'RSI Buy')
@@ -151,9 +178,27 @@ alertcondition(cr, title = 'RSI Sell')
 
 // === RSI BACKGROUND PLOT ===
 hline(50, color = color.new(#787B86, 0))
-rs = hline(80)
-rss = hline(30)
-fill(rs, rss, color = color.rgb( 100-x,x, x/2, 25), title = 'RSI Background Fill')
+rs70 = hline(70)
+rs30 = hline(30)
+rs100 = hline(100) 
+rs0 = hline(0) 
+
+gbHeatmapColor = color.rgb( 100-x,x, x/2, heatmapTransparency)
+gbHeatmapColorTop = color.rgb( 100-x,x, x/2, 100)
+gbHeatmapColorBottom = color.rgb( 100-x,x, x/2, 100)
+if (hideHeatmap==true)
+    gbHeatmapColor := colorBackground     
+         
+if rsiPlot>=70    
+    gbHeatmapColorTop := color.rgb(255,0,0,100-((rsiPlot-70) *3) )
+if rsiPlot<=30
+    gbHeatmapColorBottom := color.rgb(0,255,0,((rsiPlot) *3))
+
+
+fill(rs70, rs100, color= gbHeatmapColorTop, title = 'Background Fill')
+fill(rs30, rs70, color= gbHeatmapColor, title = 'Background Fill')
+fill(rs0, rs30, color= gbHeatmapColorBottom, title = 'Background Fill')
+
 
 // === FINAL LINES FOR PRICE PROJECTIONS (OVERLAY LINES) ===
 xo5 = 0.0
@@ -174,8 +219,9 @@ b5 = yo5 - a5 * xo5
 for i = 0 to len - 1 + extrapolation by 1
     array.set(dizi5, i, a5 * i + b5)
 
+// divbergeance in overlay
 if cg
-    line.new(ta.valuewhen(cg, bar_index, 0) - len +1, ta.valuewhen(cg, array.get(dizi5, 0), 0), ta.valuewhen(cg, bar_index, 0), ta.valuewhen(cg, array.get(dizi5, len - 1), 0), color = color.rgb(255, 0, 0), width = linewidth, force_overlay = true)
+    line.new(ta.valuewhen(cg, bar_index, 0) - len +1, ta.valuewhen(cg, array.get(dizi5, 0), 0), ta.valuewhen(cg, bar_index, 0), ta.valuewhen(cg, array.get(dizi5, len - 1), 0), color = colorLineBearishPrice, width = divergencelinewidth, force_overlay = true)
 
 xo6 = 0.0
 yo6 = 0.0
@@ -195,5 +241,6 @@ b6 = yo6 - a6 * xo6
 for i = 0 to len - 1 + extrapolation by 1
     array.set(dizi6, i, a6 * i + b6)
 
+// divergence in overlay
 if cr
-    line.new(ta.valuewhen(cr, bar_index, 0) - len +1, ta.valuewhen(cr, array.get(dizi6, 0), 0), ta.valuewhen(cr, bar_index, 0), ta.valuewhen(cr, array.get(dizi6, len - 1), 0), color = color.rgb(0, 255, 0, 0), width = linewidth, force_overlay = true)
+    line.new(ta.valuewhen(cr, bar_index, 0) - len +1, ta.valuewhen(cr, array.get(dizi6, 0), 0), ta.valuewhen(cr, bar_index, 0), ta.valuewhen(cr, array.get(dizi6, len - 1), 0), color = colorLineBullishPrice, width = divergencelinewidth, force_overlay = true)
